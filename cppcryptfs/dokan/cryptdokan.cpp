@@ -410,8 +410,8 @@ CryptCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
   // CfsExt reverse view: a name ending in .cfs must be a non-directory and any
   // other name a directory (decrypt_path() only strips the suffix)
   if (GetContext()->GetConfig()->m_reverse &&
-      GetContext()->GetConfig()->m_CfsExt && !is_virtual &&
-      !rt_is_config_file(GetContext(), FileName) && wcscmp(FileName, L"\\") &&
+      GetContext()->GetConfig()->m_CfsExt &&
+      !rt_is_config_file(GetContext(), FileName) &&
       fileAttr != INVALID_FILE_ATTRIBUTES) {
     bool isDir = (fileAttr & FILE_ATTRIBUTE_DIRECTORY) != 0;
     if (isDir == cfsext_is_suffixed(cfsext_last_name(FileName))) {
@@ -502,18 +502,14 @@ CryptCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 
   if (DokanFileInfo->IsDirectory) {
     // It is a create directory request
-
-    // CfsExt: directory names must not end in .cfs (the suffix of non-directories)
-    if (GetContext()->GetConfig()->m_CfsExt &&
-        (creationDisposition == CREATE_NEW ||
-         creationDisposition == OPEN_ALWAYS) &&
-        cfsext_is_suffixed(cfsext_last_name(FileName))) {
-      DbgPrint(L"\tCfsExt: directory name must not end in %s\n", CFSEXT_SUFFIX);
-      return ToNtStatus(ERROR_INVALID_NAME);
-    }
-
     if (creationDisposition == CREATE_NEW ||
         creationDisposition == OPEN_ALWAYS) {
+      // CfsExt: directory names must not end in .cfs (the suffix of non-directories)
+      if (GetContext()->GetConfig()->m_CfsExt &&
+          cfsext_is_suffixed(cfsext_last_name(FileName))) {
+        DbgPrint(L"\tCfsExt: directory name must not end in %s\n", CFSEXT_SUFFIX);
+        return ToNtStatus(ERROR_INVALID_NAME);
+      }
       if (!CreateDirectory(filePath, &securityAttrib)) {
         error = GetLastError();
         if (error != ERROR_ALREADY_EXISTS ||

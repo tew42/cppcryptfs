@@ -297,7 +297,7 @@ convert_fdata(CryptContext *con, BOOL isRoot, const BYTE *dir_iv, const WCHAR *p
 				}
 			} else if (con->GetConfig()->m_reverse) {
 				// the view shows NAME.cfs; omitted if that is too long for a path component
-				if (name.size() + CFSEXT_SUFFIX_LEN > 255)
+				if (name.size() + CFSEXT_SUFFIX_LEN > MAX_FILENAME_LEN)
 					return false;
 				storage = cfsext_add(name);
 				dname = storage.c_str();

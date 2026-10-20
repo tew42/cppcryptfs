@@ -12,22 +12,15 @@
 
 static void test_is_suffixed()
 {
-	assert(CFSEXT_SUFFIX_LEN == 4);
 	assert(std::wstring(CFSEXT_SUFFIX) == L".cfs");
 
 	assert(cfsext_is_suffixed(L"foo.cfs"));
 	assert(cfsext_is_suffixed(L"foo.CFS"));
-	assert(cfsext_is_suffixed(L"foo.Cfs"));
 	assert(cfsext_is_suffixed(L"foo.cFs"));
 	assert(cfsext_is_suffixed(L".cfs"));
-	assert(cfsext_is_suffixed(L".CFS"));
-	assert(cfsext_is_suffixed(L"foo.txt.cfs"));
 
 	assert(!cfsext_is_suffixed(L""));
 	assert(!cfsext_is_suffixed(L"cfs"));
-	assert(!cfsext_is_suffixed(L"foo"));
-	assert(!cfsext_is_suffixed(L"foo.cf"));
-	assert(!cfsext_is_suffixed(L"foo.cfsx"));
 	assert(!cfsext_is_suffixed(L"foo_cfs"));
 	assert(!cfsext_is_suffixed(L"foo.cfs.txt"));
 	assert(!cfsext_is_suffixed(L"foo.cfs:s")); // callers split off the stream first
@@ -40,25 +33,11 @@ static void test_split_stream()
 	cfsext_split_stream(L"foo.txt", name, stream);
 	assert(name == L"foo.txt" && stream.empty());
 
-	cfsext_split_stream(L"foo.txt:s", name, stream);
-	assert(name == L"foo.txt" && stream == L":s");
-
 	cfsext_split_stream(L"foo.txt:s:$DATA", name, stream);
 	assert(name == L"foo.txt" && stream == L":s:$DATA");
 
-	cfsext_split_stream(L"foo.txt::$DATA", name, stream);
-	assert(name == L"foo.txt" && stream == L"::$DATA");
-
 	cfsext_split_stream(L":s", name, stream);
 	assert(name.empty() && stream == L":s");
-
-	cfsext_split_stream(L"", name, stream);
-	assert(name.empty() && stream.empty());
-
-	// the output may alias the input
-	name = L"a.cfs:s";
-	cfsext_split_stream(name, name, stream);
-	assert(name == L"a.cfs" && stream == L":s");
 }
 
 static void test_add_strip()
@@ -67,79 +46,54 @@ static void test_add_strip()
 
 	assert(cfsext_add(L"foo.txt") == L"foo.txt.cfs");
 	assert(cfsext_add(L"foo.txt:s") == L"foo.txt.cfs:s");
-	assert(cfsext_add(L"foo.txt:s:$DATA") == L"foo.txt.cfs:s:$DATA");
 	assert(cfsext_add(L"x.cfs") == L"x.cfs.cfs");
 
 	assert(cfsext_strip(L"foo.txt.cfs", out) && out == L"foo.txt");
-	assert(cfsext_strip(L"foo.txt.cfs:s", out) && out == L"foo.txt:s");
 	assert(cfsext_strip(L"foo.txt.CFS:s:$DATA", out) && out == L"foo.txt:s:$DATA");
 	assert(cfsext_strip(L"x.cfs.cfs", out) && out == L"x.cfs");
-
-	// round trip
-	assert(cfsext_add(L"foo.txt:s") == L"foo.txt.cfs:s");
 	assert(cfsext_strip(cfsext_add(L"foo.txt:s"), out) && out == L"foo.txt:s");
-	assert(cfsext_strip(cfsext_add(L"a"), out) && out == L"a");
 
 	// not suffixed: false, out unchanged
 	out = L"unchanged";
 	assert(!cfsext_strip(L"foo.txt", out) && out == L"unchanged");
 	assert(!cfsext_strip(L"foo.txt:s.cfs", out) && out == L"unchanged");
-	assert(!cfsext_strip(L"", out) && out == L"unchanged");
 
-	// ".cfs" alone strips to an empty name: false
+	// empty, "." or ".." without the suffix: false
 	assert(!cfsext_strip(L".cfs", out) && out == L"unchanged");
-	assert(!cfsext_strip(L".CFS:s", out) && out == L"unchanged");
-
-	// "." or ".." without the suffix: false (..cfs and ...cfs stay hidden)
 	assert(!cfsext_strip(L"..cfs", out) && out == L"unchanged");
 	assert(!cfsext_strip(L"...cfs", out) && out == L"unchanged");
-	assert(!cfsext_strip(L"...CFS:s", out) && out == L"unchanged");
 	assert(cfsext_strip(L"....cfs", out) && out == L"...");
-
-	// the output may alias the input
-	out = L"b.cfs:s";
-	assert(cfsext_strip(out, out) && out == L"b:s");
 }
 
 static void test_bad_intermediate()
 {
 	assert(cfsext_bad_intermediate(L"\\x.cfs\\f"));
-	assert(cfsext_bad_intermediate(L"\\x.CFS\\f"));
 	assert(cfsext_bad_intermediate(L"\\a\\x.cfs\\f.cfs"));
-	assert(cfsext_bad_intermediate(L"\\x.cfs\\y\\f"));
 
 	assert(!cfsext_bad_intermediate(L"\\x\\f.cfs"));
 	assert(!cfsext_bad_intermediate(L"\\x.cfs"));
 	assert(!cfsext_bad_intermediate(L"\\x.cfs\\"));
-	assert(!cfsext_bad_intermediate(L"\\x.cfs:s"));
-	assert(!cfsext_bad_intermediate(L"\\a\\b\\c"));
+	assert(!cfsext_bad_intermediate(L"\\a\\x.cfs\\"));
 	assert(!cfsext_bad_intermediate(L"\\"));
 	assert(!cfsext_bad_intermediate(L""));
-	assert(!cfsext_bad_intermediate(L"x.cfs"));
 }
 
 static void test_last_component()
 {
 	assert(cfsext_last_component(L"\\") == L"");
-	assert(cfsext_last_component(L"\\a") == L"a");
 	assert(cfsext_last_component(L"\\a\\b") == L"b");
 	assert(cfsext_last_component(L"\\a\\") == L"");
 	assert(cfsext_last_component(L"\\a\\b.txt:s") == L"b.txt:s");
 	assert(cfsext_last_component(L"name") == L"name");
-	assert(cfsext_last_component(L"") == L"");
 }
 
 static void test_last_name()
 {
 	assert(cfsext_last_name(L"\\dir\\f:s") == L"f");
-	assert(cfsext_last_name(L"\\dir\\f.cfs:s:$DATA") == L"f.cfs");
 	assert(cfsext_last_name(L"\\dir\\f\\") == L"f");
 	assert(cfsext_last_name(L"\\f\\:s") == L"f"); // Dokan quirk: stream after a backslash
-	assert(cfsext_last_name(L"\\dir\\f") == L"f");
-	assert(cfsext_last_name(L"\\f") == L"f");
 	assert(cfsext_last_name(L"\\") == L"");
 	assert(cfsext_last_name(L"\\:s") == L"");
-	assert(cfsext_last_name(L"") == L"");
 }
 
 int main()

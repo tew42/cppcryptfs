@@ -36,7 +36,7 @@ THE SOFTWARE.
 // Pure helpers on Dokan-style paths ("\dir\name:stream"), see cfsext_test.cpp.
 
 #define CFSEXT_SUFFIX L".cfs"
-#define CFSEXT_SUFFIX_LEN 4
+#define CFSEXT_SUFFIX_LEN (sizeof(CFSEXT_SUFFIX) / sizeof(wchar_t) - 1)
 
 // true if name ends in ".cfs" (ASCII case-insensitively; ".cfs" alone is
 // suffixed, too)
@@ -65,14 +65,8 @@ inline void cfsext_split_stream(const std::wstring& last, std::wstring& name, st
 {
 	const std::wstring::size_type colon = last.find(L':');
 
-	if (colon == std::wstring::npos) {
-		name = last;
-		stream.clear();
-	} else {
-		std::wstring s = last.substr(colon);
-		name = last.substr(0, colon);
-		stream.swap(s);
-	}
+	stream = (colon == std::wstring::npos) ? std::wstring() : last.substr(colon);
+	name = last.substr(0, colon);
 }
 
 // "name:stream" -> "name.cfs:stream"
@@ -111,21 +105,13 @@ inline bool cfsext_strip(const std::wstring& last, std::wstring& out)
 // named *.cfs); empty components (leading or trailing backslash) are ignored
 inline bool cfsext_bad_intermediate(const std::wstring& path)
 {
-	std::wstring::size_type end = path.size();
+	const std::wstring::size_type end = path.find_last_not_of(L'\\');
 
-	while (end > 0 && path[end - 1] == L'\\')
-		end--;
-
-	std::wstring::size_type start = 0;
-
-	for (;;) {
-		const std::wstring::size_type slash = path.find(L'\\', start);
-		if (slash == std::wstring::npos || slash >= end)
-			return false; // the rest is the last component
-		if (cfsext_is_suffixed(path.substr(start, slash - start)))
+	for (std::wstring::size_type i = path.find(L'\\'); i != std::wstring::npos && i < end; i = path.find(L'\\', i + 1))
+		if (cfsext_is_suffixed(path.substr(0, i)))
 			return true;
-		start = slash + 1;
-	}
+
+	return false;
 }
 
 // the part of path after its last backslash (empty for the root "\" or a

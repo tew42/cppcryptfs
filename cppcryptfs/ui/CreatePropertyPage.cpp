@@ -456,8 +456,6 @@ BOOL CCreatePropertyPage::OnInitDialog()
 		}
 	}
 
-	OnLbnSelchangeFilenameEncryption();
-
 	pLbox = (CComboBox*)GetDlgItem(IDC_DATA_ENCRYPTION);
 
 	if (!pLbox)
@@ -527,27 +525,6 @@ BOOL CCreatePropertyPage::OnInitDialog()
 void CCreatePropertyPage::OnLbnSelchangeFilenameEncryption()
 {
 	// TODO: Add your control notification handler code here
-
-	CComboBox *pBox = (CComboBox *)GetDlgItem(IDC_FILENAME_ENCRYPTION);
-	CWnd *pCfsExt = GetDlgItem(IDC_CFSEXT);
-
-	if (!pBox || !pCfsExt)
-		return;
-
-	CString sel;
-
-	int nsel = pBox->GetCurSel();
-
-	if (nsel != CB_ERR)
-		pBox->GetLBText(nsel, sel);
-
-	bool isPlain = sel == LocUtils::GetStringFromResources(IDS_PLAIN_TEXT).c_str();
-
-	// the .cfs suffix requires plain text file names; don't leave a disabled box checked
-	if (!isPlain)
-		CheckDlgButton(IDC_CFSEXT, BST_UNCHECKED);
-
-	pCfsExt->EnableWindow(isPlain);
 }
 
 

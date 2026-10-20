@@ -110,7 +110,7 @@ The result is you cannot use that character in a password.
 
 You can choose to have your file names encryped using AES256-EME or not to encrypt the file names (plain text).
 
-If plain text file names are used, then you can also check "Use .cfs suffix for files", which keeps the exact names of directories in the encrypted folder and stores every file with ".cfs" appended to its name (e.g. docs\report.txt is stored as docs\report.txt.cfs, and its alternate data streams as docs\report.txt.cfs:stream).  Directory names must not end in ".cfs" (creating or renaming such a directory fails with an invalid name error), file names are limited to 251 characters, and files in the encrypted folder without the suffix, as well as directories whose names end in ".cfs", are not shown.  If the encrypted folder is written by more than one mount at the same time (e.g. when it is synced between machines), then a file and a directory with the same name can both appear, in which case the file is shown and the directory is hidden (its contents stay reachable by full path).
+If plain text file names are used, then you can also check "Use .cfs suffix for files", which keeps the exact names of directories in the encrypted folder and stores every file with ".cfs" appended to its name (e.g. docs\report.txt is stored as docs\report.txt.cfs, and its alternate data streams as docs\report.txt.cfs:stream).  Directory names must not end in ".cfs" (creating or renaming such a directory fails with an invalid name error), names are limited to 251 characters, and files in the encrypted folder without the suffix, as well as directories whose names end in ".cfs", are not shown.  If the encrypted folder is written by more than one mount at the same time (e.g. when it is synced between machines), or by concurrent operations, then a file and a directory with the same name can both appear, in which case the file is shown and the directory is hidden (its contents stay reachable by full path).
 
 If "Long file names" is checked, then the names of files and directories can be up to 255 characters long when encrypted file names are used.  This option has no effect if plain text file names are used (plain text file names can be up to 255 characters long). See the section "File name and path length limits" near the end of this document for more information.  
 
@@ -722,7 +722,7 @@ File name and path length limits
 
 If "Long file names" (the default) is specfied when creating the filesystem, or if plain text file names are used, and if the underlying filesystem is reasonably modern (e.g. NTFS/exFAT/FAT32), then a file or directory name can be up to 255 characters long, and a full path can be approximately 32,000 characters long.
 
-If the .cfs suffix for files is used, then file names are limited to 251 characters (255 minus the length of ".cfs"), while directory names can still be up to 255 characters long.
+If the .cfs suffix for files is used, then the volume reports a maximum name length of 251 characters (255 minus the length of ".cfs").
 
 If "Long file names" is not specified and plain text file names aren't used, then the maximum length of a file or directory name is 160 characters.  But the full path limit is still approximately 32,000 characters (assuming NTFS/exFAT/FAT32).
 
