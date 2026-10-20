@@ -228,6 +228,7 @@
 #define IDS_CHACHA_REQUIRES_HKDF        705
 #define IDS_CHACHA_AESSIV_CONFLICT      706
 #define IDS_CHACHA_GCMIV128_CONFLICT    707
+#define IDS_CFSEXT_REQUIRES_PLAINTEXT   708
 #define IDR_LICENSE_CPPCRYPTFS          800
 #define IDR_LICENSE_OPENSSL             801
 #define IDR_LICENSE_RAPIDJSON           802
@@ -354,6 +355,7 @@
 #define IDC_SCRYPTMEMREQ                1057
 #define IDC_APPLY                       1058
 #define IDC_LANGUAGE                    1059
+#define IDC_CFSEXT                      1060
 #define AFX_IDC_COLOR_BLACK             1100
 #define AFX_IDC_COLOR_WHITE             1101
 #define AFX_IDC_COLOR_RED               1102
@@ -863,7 +865,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        153
 #define _APS_NEXT_COMMAND_VALUE         32773
-#define _APS_NEXT_CONTROL_VALUE         1058
+#define _APS_NEXT_CONTROL_VALUE         1061
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

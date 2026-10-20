@@ -192,6 +192,7 @@ void CCreatePropertyPage::CreateCryptfs()
 	bool reverse = false;
 	bool disablestreams = false;
 	bool deterministicnames = false;
+	bool cfsext = false;
 
 	CComboBox *pBox = (CComboBox *)GetDlgItem(IDC_FILENAME_ENCRYPTION);
 
@@ -219,6 +220,13 @@ void CCreatePropertyPage::CreateCryptfs()
 	disablestreams = IsDlgButtonChecked(IDC_DISABLE_STREAMS) != 0;
 
 	deterministicnames = IsDlgButtonChecked(IDC_DETERMINISTIC_NAMES) != 0;
+
+	cfsext = IsDlgButtonChecked(IDC_CFSEXT) != 0;
+
+	if (cfsext && !plaintext) {
+		MessageBox(LocUtils::GetStringFromResources(IDS_CFSEXT_REQUIRES_PLAINTEXT).c_str(), L"cppcryptfs", MB_OK | MB_ICONEXCLAMATION);
+		return;
+	}
 
 	reverse = IsDlgButtonChecked(IDC_REVERSE) != 0;
 
@@ -250,7 +258,7 @@ void CCreatePropertyPage::CreateCryptfs()
 	const int scryptN = stoi((LPCTSTR)sel);	
 
 	theApp.DoWaitCursor(1);
-	bool bResult = config.create(cpath, config_path, password.m_buf, eme, plaintext, longfilenames, siv, chacha, reverse, scryptN, volume_name, disablestreams, longnamemax, deterministicnames, error_mes);
+	bool bResult = config.create(cpath, config_path, password.m_buf, eme, plaintext, longfilenames, siv, chacha, reverse, scryptN, volume_name, disablestreams, longnamemax, deterministicnames, cfsext, error_mes);
 	theApp.DoWaitCursor(-1);
 
 	if (!bResult) {
@@ -281,6 +289,10 @@ void CCreatePropertyPage::CreateCryptfs()
 	CString cdisablestreams = IsDlgButtonChecked(IDC_DISABLE_STREAMS) ? L"1" : L"0";
 
 	theApp.WriteProfileStringW(L"CreateOptions", L"DisableStreams", cdisablestreams);
+
+	CString ccfsext = IsDlgButtonChecked(IDC_CFSEXT) ? L"1" : L"0";
+
+	theApp.WriteProfileStringW(L"CreateOptions", L"CfsExt", ccfsext);
 
 	CString creverse = IsDlgButtonChecked(IDC_REVERSE) ? L"1" : L"0";
 
@@ -392,6 +404,8 @@ BOOL CCreatePropertyPage::OnInitDialog()
 
 	CString cdisablestreams = theApp.GetProfileStringW(L"CreateOptions", L"DisableStreams", L"0");
 
+	CString ccfsext = theApp.GetProfileStringW(L"CreateOptions", L"CfsExt", L"0");
+
 	CString creverse = theApp.GetProfileStringW(L"CreateOptions", L"Reverse", L"0");
 
 	//To extract localization-independent text from the registry
@@ -410,6 +424,8 @@ BOOL CCreatePropertyPage::OnInitDialog()
 	CheckDlgButton(IDC_DETERMINISTIC_NAMES, detnames == L"1");
 
 	CheckDlgButton(IDC_DISABLE_STREAMS, cdisablestreams == L"1");
+
+	CheckDlgButton(IDC_CFSEXT, ccfsext == L"1");
 
 	CheckDlgButton(IDC_REVERSE, creverse == L"1");
 
@@ -444,6 +460,8 @@ BOOL CCreatePropertyPage::OnInitDialog()
 			pLbox->SelectString(-1, cfnenc);
 		}
 	}
+
+	OnLbnSelchangeFilenameEncryption();
 
 	pLbox = (CComboBox*)GetDlgItem(IDC_DATA_ENCRYPTION);
 
@@ -514,6 +532,32 @@ BOOL CCreatePropertyPage::OnInitDialog()
 void CCreatePropertyPage::OnLbnSelchangeFilenameEncryption()
 {
 	// TODO: Add your control notification handler code here
+
+	// same lookup as in CreateCryptfs() (loaded here, after the GUI language has been determined)
+	static const CString sPlainText = LocUtils::GetStringFromResources(IDS_PLAIN_TEXT).c_str();
+	static const WCHAR* filename_encryption_types[] = { L"AES256-EME", sPlainText };
+	const int NUM_FN_ENC_TYPES = sizeof(filename_encryption_types) / sizeof(filename_encryption_types[0]);
+
+	CComboBox *pBox = (CComboBox *)GetDlgItem(IDC_FILENAME_ENCRYPTION);
+	CWnd *pCfsExt = GetDlgItem(IDC_CFSEXT);
+
+	if (!pBox || !pCfsExt)
+		return;
+
+	int nsel = pBox->GetCurSel();
+
+	CString cfenc;
+
+	if (nsel >= 0 && nsel < NUM_FN_ENC_TYPES)
+		cfenc = filename_encryption_types[nsel];
+
+	bool isPlain = cfenc == sPlainText;
+
+	// the .cfs suffix requires plain text file names; don't leave a disabled box checked
+	if (!isPlain)
+		CheckDlgButton(IDC_CFSEXT, BST_UNCHECKED);
+
+	pCfsExt->EnableWindow(isPlain);
 }
 
 

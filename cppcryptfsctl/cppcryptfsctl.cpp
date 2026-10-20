@@ -167,6 +167,8 @@ static int do_self_args(int argc, wchar_t* const argv[])
 
     bool deterministicnames = false;
 
+    bool cfsext = false;
+
     int scryptn = 0;
 
     LockZeroBuffer<wchar_t> password(PASSWORD_BUFLEN, false);
@@ -205,11 +207,12 @@ static int do_self_args(int argc, wchar_t* const argv[])
         {L"recover",   required_argument,  0, '2'},
         {L"longnamemax",  required_argument, 0, '3' },
         {L"scryptn",  required_argument, 0, '4' },
+        {L"cfsext",  no_argument, 0, '5' },
         {0, 0, 0, 0}
     };
 
     while (true) {
-        c = getopt_long(argc, argv, L"p:dI:c:sTL:b:V:SXvh0:1:2:3:4:", long_options, &option_index);
+        c = getopt_long(argc, argv, L"p:dI:c:sTL:b:V:SXvh0:1:2:3:4:5", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -235,6 +238,9 @@ static int do_self_args(int argc, wchar_t* const argv[])
             break;
         case '4':
             scryptn = _wtoi(optarg);
+            break;
+        case '5':
+            cfsext = true;
             break;
         case 'p':
             if (wcslen(optarg) > MAX_PASSWORD_LEN) {
@@ -325,6 +331,17 @@ static int do_self_args(int argc, wchar_t* const argv[])
         }
     }
 
+    if (cfsext) {
+        if (!plaintext_names) {
+            wcerr << L"--cfsext requires --plaintext." << endl;
+            return 1;
+        }
+        if (!do_init) {
+            wcerr << L"--cfsext makes sense only when combined with --init." << endl;
+            return 1;
+        }
+    }
+
     if (chacha && reverse) {
         wcerr << L"XChaCha20-Poly1305 cannot be used with reverse mode (reverse implies AES256-SIV)." << endl;
         return 1;
@@ -382,7 +399,7 @@ static int do_self_args(int argc, wchar_t* const argv[])
             return 1;
         }        
     
-        bool result = config.create(fs_path.c_str(), config_path.c_str(), password.m_buf, !plaintext_names, plaintext_names, longnames, reverse || siv, chacha, reverse, scryptn ? scryptn : DEFAULT_SCRYPTN, volume_name.c_str(), !streams, longnamemax, deterministicnames, mes);
+        bool result = config.create(fs_path.c_str(), config_path.c_str(), password.m_buf, !plaintext_names, plaintext_names, longnames, reverse || siv, chacha, reverse, scryptn ? scryptn : DEFAULT_SCRYPTN, volume_name.c_str(), !streams, longnamemax, deterministicnames, cfsext, mes);
 
         if (!result) {
             wcerr << mes << endl;

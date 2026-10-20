@@ -326,6 +326,8 @@ CryptConfig::read(wstring& mes, const WCHAR *config_file_path, bool reverse)
 						m_HKDF = true;
 					} else if (!strcmp(itr->GetString(), "XChaCha20Poly1305")) {
 						m_ChaChaPoly1305 = true;
+					} else if (!strcmp(itr->GetString(), "CfsExt")) {
+						m_CfsExt = true;
 					} else {
 						// Unknown feature flags are fatal: the volume's data layout
 						// may use an algorithm cppcryptfs does not implement, and
@@ -629,6 +631,9 @@ bool CryptConfig::check_config(wstring& mes)
 
 	if (!m_EMENames && !m_PlaintextNames)
 		mes += LocUtils::GetStringFromResources(IDS_EMENAMES_REQUIRED);
+
+	if (m_CfsExt && !m_PlaintextNames)
+		mes += LocUtils::GetStringFromResources(IDS_CFSEXT_REQUIRES_PLAINTEXT);
 	
 	if (!m_GCMIV128 && !m_ChaChaPoly1305) 
 		mes += LocUtils::GetStringFromResources(IDS_GCMIV128_NOT_SPECIFIED);
@@ -888,7 +893,7 @@ bool CryptConfig::encrypt_key(const wchar_t* password, const BYTE* masterkey, st
 }
 
 
-bool CryptConfig::create(const WCHAR *path, const WCHAR *specified_config_file_path, const WCHAR *password, bool eme, bool plaintext, bool longfilenames, bool siv, bool chacha, bool reverse, int scryptN, const WCHAR *volume_name, bool disablestreams, int longnamemax, bool deterministicnames, wstring& error_mes)
+bool CryptConfig::create(const WCHAR *path, const WCHAR *specified_config_file_path, const WCHAR *password, bool eme, bool plaintext, bool longfilenames, bool siv, bool chacha, bool reverse, int scryptN, const WCHAR *volume_name, bool disablestreams, int longnamemax, bool deterministicnames, bool cfsext, wstring& error_mes)
 {
 
 	if (specified_config_file_path && *specified_config_file_path == '\0')
@@ -902,6 +907,13 @@ bool CryptConfig::create(const WCHAR *path, const WCHAR *specified_config_file_p
 		m_EMENames = TRUE;
 	else if (plaintext)
 		m_PlaintextNames = TRUE;
+
+	m_CfsExt = cfsext;
+
+	if (m_CfsExt && !m_PlaintextNames) {
+		error_mes = LocUtils::GetStringFromResources(IDS_CFSEXT_REQUIRES_PLAINTEXT);
+		return false;
+	}
 
 	if (!m_PlaintextNames)
 		m_LongNames = longfilenames;
@@ -1066,6 +1078,8 @@ bool CryptConfig::create(const WCHAR *path, const WCHAR *specified_config_file_p
 			fprintf(fl, "\t\t\"PlaintextNames\",\n");
 		else if (m_DirIV)
 			fprintf(fl, "\t\t\"DirIV\",\n");
+		if (m_CfsExt)
+			fprintf(fl, "\t\t\"CfsExt\",\n");
 		if (m_LongNames && m_LongNameMax != MAX_LONGNAMEMAX)
 			fprintf(fl, "\t\t\"LongNameMax\",\n");
 		if (m_AESSIV)

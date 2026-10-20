@@ -114,7 +114,7 @@ public:
 	bool decrypt_key(LPCTSTR password);
 
 	bool create(const WCHAR* path, const WCHAR* specified_config_path, const WCHAR* password, bool eme, bool plaintext, bool longfilenames,
-		bool siv, bool chacha, bool reverse, int scryptN, const WCHAR* volume_name, bool disablestreams, int longnamemax, bool deterministicnames, wstring& error_mes		
+		bool siv, bool chacha, bool reverse, int scryptN, const WCHAR* volume_name, bool disablestreams, int longnamemax, bool deterministicnames, bool cfsext, wstring& error_mes		
 	);
 
 	bool check_config(wstring& mes);
