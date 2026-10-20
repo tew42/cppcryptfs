@@ -63,6 +63,7 @@ THE SOFTWARE.
 #include <assert.h>
 
 #include "filename/cryptfilename.h"
+#include "filename/cfsext.h"
 #include "config/cryptconfig.h"
 #include "context/cryptcontext.h"
 #include "util/fileutil.h"
@@ -242,6 +243,16 @@ NTSTATUS ToNtStatus(DWORD dwError) {
   }
 }
 
+// CfsExt: the name part (without any ":stream") of the last component of the
+// plaintext path FileName, ignoring a trailing backslash
+static wstring CfsExtLastName(LPCWSTR FileName) {
+  wstring file;
+  get_file_stream(FileName, &file, NULL);
+  if (file.size() > 1 && file[file.size() - 1] == '\\')
+    file.erase(file.size() - 1);
+  return cfsext_last_component(file);
+}
+
 static BOOL AddSeSecurityNamePrivilege() {
 
   HANDLE token = 0;
@@ -406,6 +417,19 @@ CryptCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
   BOOL bHasDirAttr = fileAttr != INVALID_FILE_ATTRIBUTES &&
                      (fileAttr & FILE_ATTRIBUTE_DIRECTORY);
 
+  // CfsExt reverse view: a name ending in .cfs must be a non-directory and any
+  // other name a directory (decrypt_path() only strips the suffix)
+  if (GetContext()->GetConfig()->m_reverse &&
+      GetContext()->GetConfig()->m_CfsExt && !is_virtual &&
+      !rt_is_config_file(GetContext(), FileName) && wcscmp(FileName, L"\\") &&
+      fileAttr != INVALID_FILE_ATTRIBUTES) {
+    bool isDir = (fileAttr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    if (isDir == cfsext_is_suffixed(CfsExtLastName(FileName))) {
+      DbgPrint(L"\tCfsExt: type of %s does not match its name\n", FileName);
+      return ToNtStatus(ERROR_FILE_NOT_FOUND);
+    }
+  }
+
   // The two blocks below are there because we generally can't write to file
   // unless we can also read from it.
   if (!(bHasDirAttr || (CreateOptions & FILE_DIRECTORY_FILE)) &&
@@ -488,6 +512,16 @@ CryptCreateFile(LPCWSTR FileName, PDOKAN_IO_SECURITY_CONTEXT SecurityContext,
 
   if (DokanFileInfo->IsDirectory) {
     // It is a create directory request
+
+    // CfsExt: directory names must not end in .cfs (the suffix of non-directories)
+    if (GetContext()->GetConfig()->m_CfsExt &&
+        (creationDisposition == CREATE_NEW ||
+         creationDisposition == OPEN_ALWAYS) &&
+        cfsext_is_suffixed(CfsExtLastName(FileName))) {
+      DbgPrint(L"\tCfsExt: directory name must not end in %s\n", CFSEXT_SUFFIX);
+      return ToNtStatus(ERROR_INVALID_NAME);
+    }
+
     if (creationDisposition == CREATE_NEW ||
         creationDisposition == OPEN_ALWAYS) {
       if (!CreateDirectory(filePath, &securityAttrib)) {
@@ -1142,6 +1176,39 @@ static NTSTATUS CryptMoveFileInternal(LPCWSTR FileName, // existing file name
       return STATUS_ACCESS_DENIED;
   }
 
+  // CfsExt: directory names must not end in .cfs, and a rename must not give a
+  // plaintext name a second cipher entry of the other type (the directory NAME
+  // next to the non-directory NAME.cfs); Dokan does not look up the target
+  if (GetContext()->GetConfig()->m_CfsExt &&
+      !GetContext()->GetConfig()->m_reverse) {
+    wstring last = CfsExtLastName(NewFileName);
+    if (DokanFileInfo->IsDirectory && cfsext_is_suffixed(last)) {
+      DbgPrint(L"\tCfsExt: directory name must not end in %s\n", CFSEXT_SUFFIX);
+      return ToNtStatus(ERROR_INVALID_NAME);
+    }
+    if (!wcschr(NewFileName, L':')) {
+      // cipher dir of the destination, including the trailing backslash
+      wstring destdir = new_path;
+      destdir.erase(destdir.find_last_of(L'\\') + 1);
+      bool clash = false;
+      if (DokanFileInfo->IsDirectory) {
+        DWORD attr = GetFileAttributes((destdir + last + CFSEXT_SUFFIX).c_str());
+        clash = attr != INVALID_FILE_ATTRIBUTES &&
+                !(attr & FILE_ATTRIBUTE_DIRECTORY);
+      } else if (!cfsext_is_suffixed(last)) {
+        DWORD attr = GetFileAttributes((destdir + last).c_str());
+        clash = attr != INVALID_FILE_ATTRIBUTES &&
+                (attr & FILE_ATTRIBUTE_DIRECTORY);
+      }
+      if (clash) {
+        DbgPrint(L"\tCfsExt: %s clashes with an entry of the other type\n",
+                 NewFileName);
+        return ReplaceIfExisting ? STATUS_ACCESS_DENIED
+                                 : STATUS_OBJECT_NAME_COLLISION;
+      }
+    }
+  }
+
   newFilePathLen = wcslen(newFilePath);
 
   // the FILE_RENAME_INFO struct has space for one WCHAR for the name at
@@ -1780,9 +1847,12 @@ static NTSTATUS DOKAN_CALLBACK CryptGetVolumeInformation(
   wcscpy_s(VolumeNameBuffer, VolumeNameSize, &config->m_VolumeName[0]);
   if (VolumeSerialNumber)
     *VolumeSerialNumber = con->GetConfig()->m_serial;
+  // CfsExt: 255 minus the length of the ".cfs" suffix
   if (MaximumComponentLength)
     *MaximumComponentLength =
-        (config->m_PlaintextNames || config->m_LongNames) ? 255 : 160;
+        (config->m_PlaintextNames || config->m_LongNames)
+            ? (config->m_CfsExt ? 251 : 255)
+            : 160;
   DWORD defFlags = (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES |
                     FILE_SUPPORTS_REMOTE_STORAGE | FILE_UNICODE_ON_DISK |
                     FILE_PERSISTENT_ACLS

@@ -35,6 +35,7 @@ THE SOFTWARE.
 #include "crypt/cryptdefs.h"
 #include "util/fileutil.h"
 #include "filename/cryptfilename.h"
+#include "filename/cfsext.h"
 
 #include <string>
 #include <vector>
@@ -275,6 +276,40 @@ convert_fdata(CryptContext *con, BOOL isRoot, const BYTE *dir_iv, const WCHAR *p
 		if (!dname)
 			return false;
 
+		if (con->GetConfig()->m_CfsExt && !isReverseConfig) {
+			// CfsExt: directories keep their names, every other entry is NAME.cfs
+			// in the cipher dir (see cfsext.h)
+			const wstring name = dname;
+			if (fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				// a directory named *.cfs is not representable
+				if (cfsext_is_suffixed(name))
+					return false;
+				if (!con->GetConfig()->m_reverse) {
+					// hidden if shadowed by the non-directory NAME.cfs (which wins in lookups)
+					wstring probe = path;
+					if (probe[probe.size() - 1] != '\\')
+						probe.push_back('\\');
+					probe += name;
+					probe += CFSEXT_SUFFIX;
+					DWORD attr = GetFileAttributes(probe.c_str());
+					if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY))
+						return false;
+				}
+			} else if (con->GetConfig()->m_reverse) {
+				// the view shows NAME.cfs; omitted if that is too long for a path component
+				if (name.size() + CFSEXT_SUFFIX_LEN > 255)
+					return false;
+				storage = cfsext_add(name);
+				dname = storage.c_str();
+			} else {
+				// NAME.cfs is the plaintext NAME; hidden without the suffix (or if
+				// the name is empty without it)
+				if (!cfsext_strip(name, storage))
+					return false;
+				dname = storage.c_str();
+			}
+		}
+
 		// wcscpy_s throws a weird exception if src is too long so check the length before calling it
 		if (wcslen(dname) >= std::size(fdata.cFileName)) {
 			return false;
@@ -295,14 +330,19 @@ static bool is_interesting_name(BOOL isRoot, const WIN32_FIND_DATAW& fdata, Cryp
 	bool reverse = con->GetConfig()->m_reverse;
 	bool plaintext = con->GetConfig()->m_PlaintextNames;
 	bool isconfig = !lstrcmpi(fdata.cFileName, CONFIG_NAME);
+	// CfsExt: non-directories are stored as NAME.cfs, so a directory named gocryptfs.conf
+	// is a plaintext entry (forward), and a plaintext file of that name does not collide
+	// with the mapped reverse config (reverse)
+	bool cfsext = con->GetConfig()->m_CfsExt;
+	bool isdir = (fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
 	
 	if (isRoot && (!wcscmp(fdata.cFileName, L".") || !wcscmp(fdata.cFileName, L".."))) {
 		return false;
-	} else if ((!reverse && isRoot && isconfig) || (!reverse && !plaintext && !lstrcmpi(fdata.cFileName, DIR_IV_NAME))) {
+	} else if ((!reverse && isRoot && isconfig && !(cfsext && isdir)) || (!reverse && !plaintext && !lstrcmpi(fdata.cFileName, DIR_IV_NAME))) {
 		return false;
 	} else if (!plaintext && !reverse && is_long_name_file(fdata.cFileName)) {
 		return false;
-	} else if (isRoot && reverse && plaintext && isconfig) {
+	} else if (isRoot && reverse && plaintext && isconfig && (!cfsext || isdir)) {
 		return false;
 	} else {
 		return true;

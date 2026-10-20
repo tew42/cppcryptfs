@@ -181,7 +181,8 @@ const WCHAR *FileNameEnc::Convert()
 						}
 					}
 				}
-				if (!encrypt_path(m_con, plain_path, m_enc_path, m_actual_encrypted)) {
+				if (!encrypt_path(m_con, plain_path, m_enc_path, m_actual_encrypted,
+					m_dokan_file_info && m_dokan_file_info->IsDirectory != 0)) {
 					throw(L"encrypt path failed " + wstring(plain_path) + L" m_enc_path = " + m_enc_path);
 				}
 			}

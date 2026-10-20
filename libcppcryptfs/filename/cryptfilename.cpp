@@ -36,6 +36,7 @@ THE SOFTWARE.
 #include "config/cryptconfig.h"
 #include "context/cryptcontext.h"
 #include "cryptfilename.h"
+#include "cfsext.h"
 #include "util/fileutil.h"
 #include "util/pad16.h"
 
@@ -66,6 +67,79 @@ bool is_long_name_file(const WCHAR *filename)
 	size_t len = wcslen(filename);
 
 	return len > (LONGNAME_PREFIX_LEN + LONGNAME_SUFFIX_LEN) && !wcsncmp(filename, LONGNAME_PREFIX_W, LONGNAME_PREFIX_LEN) && !wcscmp(filename + len - LONGNAME_SUFFIX_LEN, LONGNAME_SUFFIX_W);
+}
+
+// CfsExt (see cfsext.h): maps the last component of the plaintext path to its
+// cipher name.  Called by encrypt_path() with storage = path, prefixed by the
+// base dir in forward mode.
+// Forward: NAME.cfs if it exists and is not a directory, else NAME if it is an
+// existing directory (never for a NAME ending in .cfs), else (not found) NAME
+// for a new directory (want_dir) and NAME.cfs for anything else.
+// Reverse: storage is the view path of the plaintext tree under the base dir;
+// a non-directory gets the suffix, a directory named *.cfs is not representable.
+// A stream part (":stream") stays after the mapped name.
+static bool
+cfsext_encrypt_path(CryptContext *con, bool reverse, const WCHAR *path, wstring& storage, bool want_dir)
+{
+	wstring p = path;
+
+	// map the last component without a trailing backslash (put back at the end)
+	const bool trailing_slash = p.size() > 1 && p[p.size() - 1] == '\\';
+
+	if (trailing_slash) {
+		p.erase(p.size() - 1);
+		storage.erase(storage.size() - 1);
+	}
+
+	if (cfsext_bad_intermediate(p))
+		return false;
+
+	const wstring last = cfsext_last_component(p);
+
+	wstring name, stream;
+
+	cfsext_split_stream(last, name, stream);
+
+	// storage ends with p, so this is storage up to and including the last backslash
+	const wstring prefix = storage.substr(0, storage.size() - last.size());
+
+	bool suffix = false;
+
+	if (name.empty()) {
+		// nothing to map (e.g. a stream of the root dir)
+	} else if (!reverse) {
+		DWORD attr = GetFileAttributes((prefix + name + CFSEXT_SUFFIX).c_str());
+		if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+			suffix = true; // existing non-directory
+		} else if (cfsext_is_suffixed(name)) {
+			suffix = true; // a name ending in .cfs is never a directory
+		} else {
+			attr = GetFileAttributes((prefix + name).c_str());
+			if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+				suffix = false; // existing directory
+			else
+				suffix = !want_dir; // not found
+		}
+	} else {
+		// the plaintext entry is base dir + p (without any stream part)
+		wstring backing = con->GetConfig()->GetBaseDir();
+		backing += p.substr(0, p.size() - last.size());
+		backing += name;
+		DWORD attr = GetFileAttributes(backing.c_str());
+		if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
+			if (cfsext_is_suffixed(name))
+				return false; // not representable
+		} else {
+			suffix = true;
+		}
+	}
+
+	storage = prefix + (suffix ? cfsext_add(last) : last);
+
+	if (trailing_slash)
+		storage.push_back('\\');
+
+	return true;
 }
 
 bool 
@@ -507,6 +581,24 @@ decrypt_path(CryptContext *con, const WCHAR *path, wstring& storage)
 
 			storage += path;
 
+			if (config->m_CfsExt && !(path[0] == '\\' && path[1] == '\0')) {
+				// CfsExt: the view name NAME.cfs is the non-directory NAME, a name
+				// without the suffix is a directory (CryptCreateFile checks the type)
+				const wstring p = path;
+				if (cfsext_bad_intermediate(p))
+					throw(-1);
+				const wstring last = cfsext_last_component(p);
+				wstring name, stream;
+				cfsext_split_stream(last, name, stream);
+				if (cfsext_is_suffixed(name)) {
+					wstring stripped;
+					if (!cfsext_strip(last, stripped))
+						throw(-1);
+					storage.erase(storage.size() - last.size());
+					storage += stripped;
+				}
+			}
+
 		} else {
 
 			KeyDecryptor kdc(&config->m_keybuf_manager);
@@ -628,6 +720,16 @@ unencrypt_path(CryptContext* con, const WCHAR* path, wstring& storage)
 
 			storage += path;
 
+			if (config->m_CfsExt) {
+				// CfsExt: the cipher name NAME.cfs is the plaintext NAME
+				const wstring last = cfsext_last_component(storage);
+				wstring stripped;
+				if (cfsext_strip(last, stripped)) {
+					storage.erase(storage.size() - last.size());
+					storage += stripped;
+				}
+			}
+
 		} else {
 
 			KeyDecryptor kdc(&config->m_keybuf_manager);
@@ -745,7 +847,7 @@ unencrypt_path(CryptContext* con, const WCHAR* path, wstring& storage)
 
 
 const WCHAR * // get encrypted path
-encrypt_path(CryptContext *con, const WCHAR *path, wstring& storage, string *actual_encrypted)
+encrypt_path(CryptContext *con, const WCHAR *path, wstring& storage, string *actual_encrypted, bool cfsext_want_dir)
 {
 
 	storage.clear();
@@ -764,6 +866,11 @@ encrypt_path(CryptContext *con, const WCHAR *path, wstring& storage, string *act
 		if (config->m_PlaintextNames || (path[0] == '\\' && path[1] == '\0')) {
 
 			storage += path;
+
+			if (config->m_CfsExt && !(path[0] == '\\' && path[1] == '\0')) {
+				if (!cfsext_encrypt_path(con, config->m_reverse, path, storage, cfsext_want_dir))
+					throw(L"cfsext_encrypt_path failed for " + wstring(path));
+			}
 
 		} else {
 
@@ -909,6 +1016,8 @@ rt_is_reverse_config_file(CryptContext *con, LPCWSTR FileName)
 {
 	if (!con->GetConfig()->m_reverse)
 		return false;
+	else if (con->GetConfig()->m_CfsExt && *FileName == '\\' && !lstrcmpi(FileName + 1, (wstring(REVERSE_CONFIG_NAME) + CFSEXT_SUFFIX).c_str()))
+		return true; // CfsExt: the view name of the plaintext file .gocryptfs.reverse.conf
 	else
 		return *FileName == '\\' && !lstrcmpi(FileName + 1, REVERSE_CONFIG_NAME);
 }

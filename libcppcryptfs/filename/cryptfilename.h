@@ -67,8 +67,8 @@ unencrypt_path(CryptContext* con, const WCHAR* path, wstring& storage);
 const WCHAR * // returns base64-encoded, encrypted filename
 encrypt_filename(const CryptContext *con, const unsigned char *dir_iv, const WCHAR *filename, wstring& storage, string *actual_encrypted = NULL);
 
-const WCHAR * // get encrypted path
-encrypt_path(CryptContext *con, const WCHAR *path, wstring& storage, string *actual_encrypted = NULL);
+const WCHAR * // get encrypted path (cfsext_want_dir: with CfsExt, a name that does not exist yet is a directory)
+encrypt_path(CryptContext *con, const WCHAR *path, wstring& storage, string *actual_encrypted = NULL, bool cfsext_want_dir = false);
 
 bool write_encrypted_long_name(const WCHAR *filePath, const string& enc_data);
 

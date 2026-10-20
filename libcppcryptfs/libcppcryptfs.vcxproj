@@ -261,6 +261,7 @@
     <ClInclude Include="crypt\randombytes.h" />
     <ClInclude Include="crypt\siv.h" />
     <ClInclude Include="filename\casecache.h" />
+    <ClInclude Include="filename\cfsext.h" />
     <ClInclude Include="filename\cryptfilename.h" />
     <ClInclude Include="filename\dirivcache.h" />
     <ClInclude Include="filename\longfilenamecache.h" />
