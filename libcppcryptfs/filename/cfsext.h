@@ -30,25 +30,13 @@ THE SOFTWARE.
 
 #include <string>
 
-// CfsExt (feature flag "CfsExt", only together with PlaintextNames):
-// directories keep their names in the cipher dir, every other entry is
-// stored as NAME.cfs.  The suffix is written in lower case and matched
-// ASCII case-insensitively, because NTFS is case-insensitive.
-//
-// These are pure helpers on Dokan-style paths ("\dir\name:stream") without
-// any Windows types, so that they can be unit tested on Linux (see
-// cfsext_test.cpp).
+// CfsExt (feature flag "CfsExt", only with PlaintextNames): directories keep
+// their names in the cipher dir, every other entry is stored as NAME.cfs (the
+// suffix is written in lower case and matched ASCII case-insensitively).
+// Pure helpers on Dokan-style paths ("\dir\name:stream"), see cfsext_test.cpp.
 
-// An inline variable needs C++17.  Without it (MSVC has defaulted to
-// /std:c++14 and the vcxproj files set no LanguageStandard), every
-// translation unit gets its own copy.
-#ifdef __cpp_inline_variables
-inline const wchar_t CFSEXT_SUFFIX[] = L".cfs";
-#else
-static const wchar_t CFSEXT_SUFFIX[] = L".cfs";
-#endif
-
-const std::wstring::size_type CFSEXT_SUFFIX_LEN = sizeof(CFSEXT_SUFFIX) / sizeof(CFSEXT_SUFFIX[0]) - 1;
+#define CFSEXT_SUFFIX L".cfs"
+#define CFSEXT_SUFFIX_LEN 4
 
 // true if name ends in ".cfs" (ASCII case-insensitively; ".cfs" alone is
 // suffixed, too)
@@ -98,17 +86,22 @@ inline std::wstring cfsext_add(const std::wstring& last)
 }
 
 // "name.cfs:stream" -> "name:stream"; false if the name part is not suffixed
-// or would be empty without the suffix
+// or would be empty, "." or ".." without the suffix
 inline bool cfsext_strip(const std::wstring& last, std::wstring& out)
 {
 	std::wstring name, stream;
 
 	cfsext_split_stream(last, name, stream);
 
-	if (!cfsext_is_suffixed(name) || name.size() == CFSEXT_SUFFIX_LEN)
+	if (!cfsext_is_suffixed(name))
 		return false;
 
-	out = name.substr(0, name.size() - CFSEXT_SUFFIX_LEN) + stream;
+	name.erase(name.size() - CFSEXT_SUFFIX_LEN);
+
+	if (name.empty() || name == L"." || name == L"..")
+		return false;
+
+	out = name + stream;
 
 	return true;
 }
@@ -142,4 +135,18 @@ inline std::wstring cfsext_last_component(const std::wstring& path)
 	const std::wstring::size_type slash = path.rfind(L'\\');
 
 	return slash == std::wstring::npos ? path : path.substr(slash + 1);
+}
+
+// the name part (without any ":stream") of the last component of path,
+// ignoring one trailing backslash; like get_file_stream(), the stream is split
+// off at the first colon of the whole path (so "\f\:s" gives "f"), which is
+// why path must not start with a drive letter
+inline std::wstring cfsext_last_name(const std::wstring& path)
+{
+	std::wstring file = path.substr(0, path.find(L':'));
+
+	if (file.size() > 1 && file[file.size() - 1] == L'\\')
+		file.erase(file.size() - 1);
+
+	return cfsext_last_component(file);
 }

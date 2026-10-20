@@ -90,6 +90,12 @@ static void test_add_strip()
 	assert(!cfsext_strip(L".cfs", out) && out == L"unchanged");
 	assert(!cfsext_strip(L".CFS:s", out) && out == L"unchanged");
 
+	// "." or ".." without the suffix: false (..cfs and ...cfs stay hidden)
+	assert(!cfsext_strip(L"..cfs", out) && out == L"unchanged");
+	assert(!cfsext_strip(L"...cfs", out) && out == L"unchanged");
+	assert(!cfsext_strip(L"...CFS:s", out) && out == L"unchanged");
+	assert(cfsext_strip(L"....cfs", out) && out == L"...");
+
 	// the output may alias the input
 	out = L"b.cfs:s";
 	assert(cfsext_strip(out, out) && out == L"b:s");
@@ -123,6 +129,19 @@ static void test_last_component()
 	assert(cfsext_last_component(L"") == L"");
 }
 
+static void test_last_name()
+{
+	assert(cfsext_last_name(L"\\dir\\f:s") == L"f");
+	assert(cfsext_last_name(L"\\dir\\f.cfs:s:$DATA") == L"f.cfs");
+	assert(cfsext_last_name(L"\\dir\\f\\") == L"f");
+	assert(cfsext_last_name(L"\\f\\:s") == L"f"); // Dokan quirk: stream after a backslash
+	assert(cfsext_last_name(L"\\dir\\f") == L"f");
+	assert(cfsext_last_name(L"\\f") == L"f");
+	assert(cfsext_last_name(L"\\") == L"");
+	assert(cfsext_last_name(L"\\:s") == L"");
+	assert(cfsext_last_name(L"") == L"");
+}
+
 int main()
 {
 	test_is_suffixed();
@@ -130,6 +149,7 @@ int main()
 	test_add_strip();
 	test_bad_intermediate();
 	test_last_component();
+	test_last_name();
 
 	printf("cfsext_test: all tests passed\n");
 

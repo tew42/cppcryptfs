@@ -223,11 +223,6 @@ void CCreatePropertyPage::CreateCryptfs()
 
 	cfsext = IsDlgButtonChecked(IDC_CFSEXT) != 0;
 
-	if (cfsext && !plaintext) {
-		MessageBox(LocUtils::GetStringFromResources(IDS_CFSEXT_REQUIRES_PLAINTEXT).c_str(), L"cppcryptfs", MB_OK | MB_ICONEXCLAMATION);
-		return;
-	}
-
 	reverse = IsDlgButtonChecked(IDC_REVERSE) != 0;
 
 	pBox = (CComboBox *)GetDlgItem(IDC_DATA_ENCRYPTION);
@@ -533,25 +528,20 @@ void CCreatePropertyPage::OnLbnSelchangeFilenameEncryption()
 {
 	// TODO: Add your control notification handler code here
 
-	// same lookup as in CreateCryptfs() (loaded here, after the GUI language has been determined)
-	static const CString sPlainText = LocUtils::GetStringFromResources(IDS_PLAIN_TEXT).c_str();
-	static const WCHAR* filename_encryption_types[] = { L"AES256-EME", sPlainText };
-	const int NUM_FN_ENC_TYPES = sizeof(filename_encryption_types) / sizeof(filename_encryption_types[0]);
-
 	CComboBox *pBox = (CComboBox *)GetDlgItem(IDC_FILENAME_ENCRYPTION);
 	CWnd *pCfsExt = GetDlgItem(IDC_CFSEXT);
 
 	if (!pBox || !pCfsExt)
 		return;
 
+	CString sel;
+
 	int nsel = pBox->GetCurSel();
 
-	CString cfenc;
+	if (nsel != CB_ERR)
+		pBox->GetLBText(nsel, sel);
 
-	if (nsel >= 0 && nsel < NUM_FN_ENC_TYPES)
-		cfenc = filename_encryption_types[nsel];
-
-	bool isPlain = cfenc == sPlainText;
+	bool isPlain = sel == LocUtils::GetStringFromResources(IDS_PLAIN_TEXT).c_str();
 
 	// the .cfs suffix requires plain text file names; don't leave a disabled box checked
 	if (!isPlain)
