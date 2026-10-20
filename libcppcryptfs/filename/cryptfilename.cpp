@@ -605,7 +605,11 @@ decrypt_path(CryptContext *con, const WCHAR *path, wstring& storage)
 				if (cfsext_bad_intermediate(p))
 					throw(-1);
 				const wstring last = cfsext_last_component(p);
-				if (cfsext_is_suffixed(cfsext_last_name(p))) {
+				const wstring name = cfsext_last_name(p);
+				// names this long are omitted from the view (see convert_fdata())
+				if (name.size() > MAX_FILENAME_LEN)
+					throw(-1);
+				if (cfsext_is_suffixed(name)) {
 					wstring stripped;
 					if (!cfsext_strip(last, stripped))
 						throw(-1);
