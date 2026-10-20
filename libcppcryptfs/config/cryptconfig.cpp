@@ -75,6 +75,7 @@ CryptConfig::CryptConfig()
 	
 
 	m_PlaintextNames = false;
+	m_CfsExt = false;
 	m_DirIV = false;
 	m_EMENames = false;
 	m_GCMIV128 = false;

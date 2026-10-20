@@ -50,6 +50,7 @@ public:
 	int m_P;
 
 	bool m_PlaintextNames;
+	bool m_CfsExt;
 	KeybufManager m_keybuf_manager;
 private:
 	LockZeroBuffer<unsigned char> *m_pKeyBuf;
