@@ -110,6 +110,8 @@ The result is you cannot use that character in a password.
 
 You can choose to have your file names encryped using AES256-EME or not to encrypt the file names (plain text).
 
+If plain text file names are used, then you can also check "Use .cfs suffix for files", which keeps the exact names of directories in the encrypted folder and stores every file with ".cfs" appended to its name (e.g. docs\report.txt is stored as docs\report.txt.cfs, and its alternate data streams as docs\report.txt.cfs:stream).  Directory names must not end in ".cfs" (creating or renaming such a directory fails with an invalid name error), file names are limited to 251 characters, and files in the encrypted folder without the suffix, as well as directories whose names end in ".cfs", are not shown.  If the encrypted folder is written by more than one mount at the same time (e.g. when it is synced between machines), then a file and a directory with the same name can both appear, in which case the file is shown and the directory is hidden.
+
 If "Long file names" is checked, then the names of files and directories can be up to 255 characters long when encrypted file names are used.  This option has no effect if plain text file names are used (plain text file names can be up to 255 characters long). See the section "File name and path length limits" near the end of this document for more information.  
 
 If a "Long name max" value that is less than 255 is selected (minimum value is 62), then cppcryptfs will limit filename length.  Even when 62 is selected, file names created will be up to 67 characters long.  This option is useful when using cloud services that have problems with filenames that are above a certain length.
@@ -439,6 +441,8 @@ the cppcryptfs drive letter provides an on-the-fly encrypted view of these files
 
 Reverse mode also gives a view of the config file (as gocryptfs.conf), and if encrypted file names are used, a gocryptfs.diriv file in each directory.  And if long file names are used with encrypted file names, then the special long file name files are also presented.
 
+If the .cfs suffix for files is used, then the encrypted view shows every file as NAME.cfs and directories unchanged.  Plaintext directories whose names end in ".cfs", and files whose names are longer than 251 characters, are omitted from the view.
+
 Reverse mode filesystems are always mounted read-only.
 
 When you create a reverse mode filesystem, the root directory of the filesystem doesn't have to be empty (unlike in the case of creating a normal forward
@@ -520,6 +524,7 @@ Initializing (cppcryptfsctl only):
   -V, --volumename=NAME       specify volume name for filesystem
   -T, --plaintext             use plaintext filenames (default is AES256-EME)
   --deterministicnames        disable creation of gocryptfs.diriv files.
+  --cfsext                    store files as NAME.cfs (requires --plaintext)
   -S, --siv                   use AES256-SIV for data encr (default is GCM)
   -X, --chacha                use XChaCha20-Poly1305 for data encr (default is GCM)
   -L, --longnames [1|0]       enable/disable LFNs. defaults to enabled (1)
@@ -717,6 +722,8 @@ File name and path length limits
 
 If "Long file names" (the default) is specfied when creating the filesystem, or if plain text file names are used, and if the underlying filesystem is reasonably modern (e.g. NTFS/exFAT/FAT32), then a file or directory name can be up to 255 characters long, and a full path can be approximately 32,000 characters long.
 
+If the .cfs suffix for files is used, then file names are limited to 251 characters (255 minus the length of ".cfs"), while directory names can still be up to 255 characters long.
+
 If "Long file names" is not specified and plain text file names aren't used, then the maximum length of a file or directory name is 160 characters.  But the full path limit is still approximately 32,000 characters (assuming NTFS/exFAT/FAT32).
 
 When a file name is encrypted, it is converted from UNICODE-16 to UTF-8 which, depending the language, might cause the number of characters to increase.  Then it is encrypted, which causes it to be padded by up to 16 bytes. Then it is base64 encoded, which typically results in a 33% increase in length.  The encrypted file names can therefore be signifcantly longer than the unencrypted names.
@@ -748,6 +755,8 @@ cppcryptfs now has a "case-insensitive" setting that causes it to have case-inse
 In reverse mode, file names are always case-sensitive if encrypted file names are used, regardless of the case-insensitive setting.  This is a necessary precaution because if the case of an encrypted file name is changed (for example, when backing up the filesystem), then the file name will not decrypt properly if the copy of the filesysem is subsequently mounted in forward mode.
 
 If plain text file names are used, then file names are always case-insensitive, in both forward and reverse mode, regardless of the case-insensitive setting.
+
+If the .cfs suffix for files is used, then the suffix is also matched case-insensitively (e.g. a file stored as report.txt.CFS in the encrypted folder is shown as report.txt).
 
 
 Performance
@@ -783,6 +792,8 @@ Compatibility with gocryptfs
 cppcryptfs can mount all filesystems created by gocryptfs v0.7 and higher. Likewise, filesystems created by cppcryptfs with "long file names = off" can be mounted by gocryptfs v0.7 and higher. Filesystems with "long file names = on" can mounted by gocryptfs v0.9 and higher.
 
 The gocryptfs [compatability matrix](https://github.com/rfjakob/gocryptfs/wiki/Compatibility) provides more details. cppcryptfs *requires* the DirIV, EMENames (if encrypted file names and not plaintext file names are used), and GCMIV128 feature flags. It *supports* LongNames and can create filesystems with the flag on and off.
+
+cppcryptfs also *supports* the CfsExt feature flag, which is set when "Use .cfs suffix for files" or `cppcryptfsctl --init --plaintext --cfsext` is used. gocryptfs versions that have the `-cfsext` option use the same format, so such filesystems can be mounted by either program, but older versions of cppcryptfs and gocryptfs cannot mount them.
 
 Note: cppcryptfs now keeps version number parity with gocryptfs to indicate its compatibility
 with gocryptfs.  cppcryptfs is now version 1.4 and should be able to mount all filesystems created with gocryptfs 1.4.

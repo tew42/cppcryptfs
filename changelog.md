@@ -2,6 +2,12 @@
 
 Changelog
 ------------
+v1.4.6.0 20 Oct 2026
+* Add --cfsext option (Create dialog checkbox "Use .cfs suffix for files"):
+  with plain text file names, files are stored as NAME.cfs and directories
+  keep their names. New feature flag CfsExt (compatible with
+  gocryptfs -cfsext); older versions cannot mount such volumes.
+
 v1.4.5.0 18 Oct 2026
 * Added xchacha20-poly1305 cipher algorithm.
 * Fixed a path out-of-bounds bug when checking a trailing path separator.

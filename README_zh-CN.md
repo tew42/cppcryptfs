@@ -468,6 +468,7 @@ cppcryptfsctl 在成功时将 ERRORLEVEL 设置为 0，发生错误时设置为 
   -V, --volumename=NAME       为文件系统指定卷名
   -T, --plaintext             使用明文文件名（默认是 AES256-EME 模式）
   --deterministicnames        禁用创建 gocryptfs.diriv 文件。
+  --cfsext                    store files as NAME.cfs (requires --plaintext)
   -S, --siv                   使用 AES256-SIV 进行数据加密（默认是 GCM 模式）
   -L, --longnames [1|0]       启用/禁用长文件名。默认启用（1）
   -b, --streams   [1|0]       启用/禁用流。默认启用（1）
